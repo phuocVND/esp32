@@ -1,0 +1,18 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.espIdfPathWin": "C:\\Users\\vongu\\esp\\v5.3.3\\esp-idf",
+    "idf.pythonInstallPath": "C:\\Users\\vongu\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "idf.espAdfPathWin": "C:\\Users\\vongu\\.espressif\\esp-adf",
+    "idf.espMdfPathWin": "C:\\Users\\vongu\\.espressif\\esp-mdf",
+    "idf.openOcdConfigs": [
+        "board/esp32-wrover-kit-3.3v.cfg"
+    ],
+    "idf.portWin": "COM3",
+    "idf.toolsPathWin": "C:\\Users\\vongu\\.espressif",
+    "files.associations": {
+        "esp_event.h": "c",
+        "esp_netif.h": "c",
+        "errno.h": "c"
+    },
+    "idf.flashType": "UART"
+}
