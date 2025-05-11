@@ -13,7 +13,8 @@
         "esp_event.h": "c",
         "esp_netif.h": "c",
         "errno.h": "c",
-        "wifi_connect.h": "c"
+        "wifi_connect.h": "c",
+        "tcp_client.h": "c"
     },
     "idf.flashType": "UART",
     "idf.port": "/dev/ttyUSB0"

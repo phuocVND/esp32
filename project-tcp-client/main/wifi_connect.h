@@ -8,8 +8,8 @@
 #include "esp_err.h"
 
 // Cấu hình Wi-Fi
-#define WIFI_SSID      "duyphuoc"      // Thay bằng SSID của Wi-Fi
-#define WIFI_PASSWORD  "66666666"  // Thay bằng mật khẩu Wi-Fi
+#define WIFI_SSID      "Ge cafe"      // Thay bằng SSID của Wi-Fi
+#define WIFI_PASSWORD  "gexincamon"  // Thay bằng mật khẩu Wi-Fi
 #define WIFI_MAX_RETRY 5                // Số lần thử kết nối lại
 #define WIFI_TAG       "WIFI_CONNECT"
 

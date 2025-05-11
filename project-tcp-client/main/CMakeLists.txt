@@ -10,10 +10,11 @@ endif()
 #     set(tcp_client_ip tcp_client_v6.c)
 # endif()
 
-idf_component_register(SRCS "tcp_client_v4.c" 
+idf_component_register(SRCS 
                             "tcp_client.c"
-                            "main.c"
-                            # "${tcp_client_ip}"
                             "wifi_connect.c"
+                            "servo_control.c"
+                            "led_control.c"
+                            "main.c"
                                 INCLUDE_DIRS "."
                                 REQUIRES ${requires})

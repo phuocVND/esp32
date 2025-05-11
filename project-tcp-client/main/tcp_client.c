@@ -1,16 +1,23 @@
 #include "tcp_client.h"
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
+
 
 static int sock = -1; // Socket file descriptor
-
-
 
 // Gửi mảng float
 void send_array(int client_socket, float* arr, size_t size) {
     ssize_t bytes_sent = send(client_socket, arr, size * sizeof(float), 0);
     if (bytes_sent == -1) {
-        ESP_LOGE(TCP_TAG, "Error sending array: %s", strerror(errno));
+        fprintf(stderr, "[%s] Error sending array: %s\n", TCP_TAG, strerror(errno));
     } else {
-        ESP_LOGI(TCP_TAG, "Array sent successfully!");
+        printf("[%s] Array sent successfully!\n", TCP_TAG);
     }
 }
 
@@ -18,16 +25,16 @@ void send_array(int client_socket, float* arr, size_t size) {
 bool recv_array(int client_socket, int* arr, size_t size) {
     ssize_t bytes_received = recv(client_socket, arr, size * sizeof(int), 0);
     if (bytes_received > 0) {
-        ESP_LOGI(TCP_TAG, "Array received successfully!");
+        printf("[%s] Array received successfully!\n", TCP_TAG);
         for (size_t i = 0; i < size; ++i) {
-            ESP_LOGI(TCP_TAG, "arr[%d] = %d", i, arr[i]);
+            printf("[%s] arr[%zu] = %d\n", TCP_TAG, i, arr[i]);
         }
         return true;
     } else if (bytes_received == 0) {
-        ESP_LOGW(TCP_TAG, "Client disconnected!");
+        printf("[%s] Client disconnected!\n", TCP_TAG);
         return false;
     } else {
-        ESP_LOGE(TCP_TAG, "Error receiving array: %s", strerror(errno));
+        fprintf(stderr, "[%s] Error receiving array: %s\n", TCP_TAG, strerror(errno));
         return false;
     }
 }
@@ -36,9 +43,9 @@ bool recv_array(int client_socket, int* arr, size_t size) {
 void send_struct(int client_socket, const MyData* data) {
     ssize_t bytes_sent = send(client_socket, data, sizeof(MyData), 0);
     if (bytes_sent == -1) {
-        ESP_LOGE(TCP_TAG, "Error sending struct: %s", strerror(errno));
+        fprintf(stderr, "[%s] Error sending struct: %s\n", TCP_TAG, strerror(errno));
     } else {
-        ESP_LOGI(TCP_TAG, "Struct sent successfully!");
+        printf("[%s] Struct sent successfully!\n", TCP_TAG);
     }
 }
 
@@ -46,101 +53,121 @@ void send_struct(int client_socket, const MyData* data) {
 bool recv_struct(int client_socket, MyData* data) {
     ssize_t bytes_received = recv(client_socket, data, sizeof(MyData), 0);
     if (bytes_received > 0) {
-        ESP_LOGI(TCP_TAG, "Struct received successfully!");
-        ESP_LOGI(TCP_TAG, "ID: %d", data->id);
-        ESP_LOGI(TCP_TAG, "Value: %f", data->value);
-        ESP_LOGI(TCP_TAG, "Name: %s", data->name);
+        printf("[%s] Struct received successfully!\n", TCP_TAG);
+        printf("[%s] ID: %d\n", TCP_TAG, data->id);
+        printf("[%s] Value: %f\n", TCP_TAG, data->value);
+        printf("[%s] Name: %s\n", TCP_TAG, data->name);
         return true;
     } else if (bytes_received == 0) {
-        ESP_LOGW(TCP_TAG, "Client disconnected!");
+        printf("[%s] Client disconnected!\n", TCP_TAG);
         return false;
     } else {
-        ESP_LOGE(TCP_TAG, "Error receiving struct: %s", strerror(errno));
+        fprintf(stderr, "[%s] Error receiving struct: %s\n", TCP_TAG, strerror(errno));
         return false;
     }
 }
 
-
 // Khởi tạo và kết nối tới server
-esp_err_t tcp_client_init(void) {
+int tcp_client_init(void) {
     struct sockaddr_in server_addr;
-    struct addrinfo hints, *res;
-
-    // Thiết lập hints cho getaddrinfo
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    // Chuyển đổi port thành chuỗi
-    char port_str[6];
-    snprintf(port_str, sizeof(port_str), "%d", TCP_SERVER_PORT);
-
-    // Lấy thông tin địa chỉ server
-    int err = getaddrinfo(TCP_SERVER_IP, port_str, &hints, &res);
-    if (err != 0 || res == NULL) {
-        ESP_LOGE(TCP_TAG, "DNS lookup failed err=%d res=%p", err, res);
-        if (res) freeaddrinfo(res);
-        return ESP_FAIL;
-    }
 
     // Tạo socket
-    sock = socket(res->ai_family, res->ai_socktype, 0);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        ESP_LOGE(TCP_TAG, "Failed to create socket: %d", errno);
-        freeaddrinfo(res);
-        return ESP_FAIL;
+        fprintf(stderr, "[%s] Failed to create socket: %s\n", TCP_TAG, strerror(errno));
+        return -1;
+    }
+
+    // Cấu hình địa chỉ server
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(TCP_SERVER_PORT);
+    if (inet_pton(AF_INET, TCP_SERVER_IP, &server_addr.sin_addr) <= 0) {
+        fprintf(stderr, "[%s] Invalid server IP address\n", TCP_TAG);
+        close(sock);
+        sock = -1;
+        return -1;
     }
 
     // Kết nối tới server
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
-        ESP_LOGE(TCP_TAG, "Socket connect failed: %d", errno);
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) != 0) {
+        fprintf(stderr, "[%s] Socket connect failed: %s\n", TCP_TAG, strerror(errno));
         close(sock);
         sock = -1;
-        freeaddrinfo(res);
-        return ESP_FAIL;
+        return -1;
     }
 
-    ESP_LOGI(TCP_TAG, "Connected to server %s:%d", TCP_SERVER_IP, TCP_SERVER_PORT);
-    freeaddrinfo(res);
-    return ESP_OK;
+    printf("[%s] Connected to server %s:%d\n", TCP_TAG, TCP_SERVER_IP, TCP_SERVER_PORT);
+    return 0;
 }
 
 // Gửi dữ liệu tới server
-esp_err_t tcp_client_send(const char *data) {
+int tcp_client_send(const char *data) {
     if (sock < 0) {
-        ESP_LOGE(TCP_TAG, "Socket not initialized");
-        return ESP_FAIL;
+        fprintf(stderr, "[%s] Socket not initialized\n", TCP_TAG);
+        return -1;
     }
 
     int len = send(sock, data, strlen(data), 0);
     if (len < 0) {
-        ESP_LOGE(TCP_TAG, "Error occurred during sending: %d", errno);
-        return ESP_FAIL;
+        fprintf(stderr, "[%s] Error occurred during sending: %s\n", TCP_TAG, strerror(errno));
+        return -1;
     }
 
-    ESP_LOGI(TCP_TAG, "Sent %d bytes: %s", len, data);
-    return ESP_OK;
+    printf("[%s] Sent %d bytes: %s\n", TCP_TAG, len, data);
+    return 0;
+}
+
+// Nhận mảng int
+int tcp_client_receive_ints(int *int_array) {
+    if (sock < 0) {
+        fprintf(stderr, "[%s] Socket not initialized\n", TCP_TAG);
+        return -1;
+    }
+
+    int total_bytes = NUM_INTS * sizeof(int); // 20 bytes cho 5 int
+    uint8_t *buffer = (uint8_t *)int_array;
+    int received = 0;
+
+    while (received < total_bytes) {
+        int len = recv(sock, buffer + received, total_bytes - received, 0);
+        if (len < 0) {
+            fprintf(stderr, "[%s] Error receiving data: %s\n", TCP_TAG, strerror(errno));
+            return -1;
+        } else if (len == 0) {
+            printf("[%s] Server closed connection\n", TCP_TAG);
+            return -1;
+        }
+        received += len;
+    }
+
+    printf("[%s] Received %d bytes (%d ints)\n", TCP_TAG, received, NUM_INTS);
+    for (int i = 0; i < NUM_INTS; i++) {
+        printf("[%s] Value int[%d] = %d\n", TCP_TAG, i, int_array[i]);
+    }
+
+    return 0;
 }
 
 // Nhận dữ liệu từ server
-esp_err_t tcp_client_receive(char *buffer, size_t buffer_size) {
+int tcp_client_receive(char *buffer, size_t buffer_size) {
     if (sock < 0) {
-        ESP_LOGE(TCP_TAG, "Socket not initialized");
-        return ESP_FAIL;
+        fprintf(stderr, "[%s] Socket not initialized\n", TCP_TAG);
+        return -1;
     }
 
     int len = recv(sock, buffer, buffer_size - 1, 0);
     if (len < 0) {
-        ESP_LOGE(TCP_TAG, "Error occurred during receiving: %d", errno);
-        return ESP_FAIL;
+        fprintf(stderr, "[%s] Error occurred during receiving: %s\n", TCP_TAG, strerror(errno));
+        return -1;
     } else if (len == 0) {
-        ESP_LOGW(TCP_TAG, "Connection closed by server");
-        return ESP_FAIL;
+        printf("[%s] Connection closed by server\n", TCP_TAG);
+        return -1;
     }
 
     buffer[len] = '\0'; // Thêm ký tự kết thúc chuỗi
-    ESP_LOGI(TCP_TAG, "Received %d bytes: %s", len, buffer);
-    return ESP_OK;
+    printf("[%s] Received %d bytes: %s\n", TCP_TAG, len, buffer);
+    return 0;
 }
 
 // Đóng kết nối
@@ -148,6 +175,6 @@ void tcp_client_close(void) {
     if (sock >= 0) {
         close(sock);
         sock = -1;
-        ESP_LOGI(TCP_TAG, "Socket closed");
+        printf("[%s] Socket closed\n", TCP_TAG);
     }
 }
