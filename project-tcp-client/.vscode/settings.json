@@ -1,7 +1,7 @@
 {
     "C_Cpp.intelliSenseEngine": "default",
     "idf.espIdfPathWin": "C:\\Users\\vongu\\esp\\v5.3.3\\esp-idf",
-    "idf.pythonInstallPath": "C:\\Users\\vongu\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "idf.pythonInstallPath": "/usr/bin/python3",
     "idf.espAdfPathWin": "C:\\Users\\vongu\\.espressif\\esp-adf",
     "idf.espMdfPathWin": "C:\\Users\\vongu\\.espressif\\esp-mdf",
     "idf.openOcdConfigs": [
@@ -12,7 +12,9 @@
     "files.associations": {
         "esp_event.h": "c",
         "esp_netif.h": "c",
-        "errno.h": "c"
+        "errno.h": "c",
+        "wifi_connect.h": "c"
     },
-    "idf.flashType": "UART"
+    "idf.flashType": "UART",
+    "idf.port": "/dev/ttyUSB0"
 }

@@ -1,0 +1,2 @@
+source /home/phuocvnd/Desktop/esp32/project-tcp-client/build/gdbinit/symbols
+source /home/phuocvnd/Desktop/esp32/project-tcp-client/build/gdbinit/connect
