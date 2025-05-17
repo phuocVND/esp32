@@ -1,85 +1,101 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "wifi_connect.h"
 #include "tcp_client.h"
 #include "led_control.h"
 #include "servo_control.h"
+
+// Định nghĩa số servo
+#define NUM_SERVOS 6
+
+// Biến toàn cục để lưu trữ góc cho các servo
+static short servo_angles[NUM_SERVOS] = {0};
+// Semaphore để đồng bộ hóa truy cập servo_angles
+static SemaphoreHandle_t angles_mutex;
+
+// Task điều khiển LED
 void led_task(void *arg) {
     while (1) {
         led1_control(true);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        // vTaskDelay(500 / portTICK_PERIOD_MS);
         led1_control(false);
         led2_control(true);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        // vTaskDelay(500 / portTICK_PERIOD_MS);
         led2_control(false);
         led3_control(true);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        // vTaskDelay(500 / portTICK_PERIOD_MS);
         led3_control(false);
+        // vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+typedef struct {
+    short servo_index;
+    short servo_angle;
+} servo_param_t;
+// Task điều khiển Servo
+void control_servo(void *arg) {
+    servo_param_t *param = (servo_param_t *)arg;
+    while (1) {
+            servo_set_angle(param->servo_index, param->servo_angle); 
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+}
+
 // Task điều khiển Servo
 void servo_task(void *arg) {
-    ServoParams *params = (ServoParams *)arg; // Lấy tham số
-    uint8_t servo_id = params->servo_id;
-    uint32_t *angles = params->angles;
-    uint32_t delay_ms = params->delay_ms;
-
-    while (1) {
-        for (int i = 0; i < NUM_ANGLES; i++) {
-            servo_set_angle(servo_id, angles[i]);
-            vTaskDelay(delay_ms / portTICK_PERIOD_MS);
-        }
+    static servo_param_t params[NUM_SERVOS];
+    short *angles = (short *)arg;
+    
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        params[i].servo_index = i;
+        params[i].servo_angle = angles[i];
+        xTaskCreate(control_servo, "control_servo", 2048, &params[i], 8, NULL);
     }
+    vTaskDelete(NULL); // xóa servo_task khi đã hoàn thành nhiệm vụ
 }
 
-
+// Task xử lý TCP
 void tcp_task(void *param) {
-    // Gửi thông điệp chuỗi ban đầu
-    int *shared_array = (int *)param; // Ép kiểu từ void*
-
-    const char *message = "Hello, TCP Server!";
-    if (tcp_client_send(message) != ESP_OK) {
-        ESP_LOGE("TCP_TASK", "Failed to send data");
-    }
-
-    // Nhận phản hồi chuỗi từ server
-    char rx_buffer[128];
-    if (tcp_client_receive(rx_buffer, sizeof(rx_buffer)) != ESP_OK) {
-        ESP_LOGE("TCP_TASK", "Failed to receive string data");
-    } else {
-        ESP_LOGI("TCP_TASK", "Server response: %s", rx_buffer);
-    }
-
-    // Nhận mảng int liên tục
-    // int my_ints[5];
+    short *shared_array = (short *)param;
     while (1) {
-        if (tcp_client_receive_ints(shared_array) == ESP_OK) {
+        if (xSemaphoreTake(angles_mutex, portMAX_DELAY) == pdTRUE) {
+            if (tcp_client_receive_ints(shared_array) != ESP_OK) {
+                ESP_LOGW("TCPGiovan", "Failed to receive int array");
+                xSemaphoreGive(angles_mutex);
+                break; // Thoát nếu lỗi nhận dữ liệu
+            }
             ESP_LOGI("TCP_TASK", "Received int array");
-        } else {
-            ESP_LOGW("TCP_TASK", "Failed to receive int array");
+            xSemaphoreGive(angles_mutex);
         }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Chờ 0.5 giây (500ms)
+        // vTaskDelay(pdMS_TO_TICKS(500)); // Đợi 500ms
     }
-
-    // Không chạy đến đây do while(1), nhưng để an toàn
     tcp_client_close();
     vTaskDelete(NULL);
 }
 
 void app_main(void) {
-    // Khởi tạo Wi-Fi
+    // Khởi tạo LED và servo
     init_leds();
     init_servos();
 
+    // Khởi tạo Wi-Fi
     if (wifi_connect_init() != ESP_OK) {
         ESP_LOGE("MAIN", "Failed to initialize Wi-Fi");
         return;
     }
 
-    // Chờ kết nối Wi-Fi
-    if (wifi_wait_for_connection() != ESP_OK) {
-        ESP_LOGE("MAIN", "Failed to connect to Wi-Fi");
+    // Thử lại kết nối Wi-Fi
+    int retry_count = 0;
+    const int max_retries = 5;
+    while (wifi_wait_for_connection() != ESP_OK && retry_count < max_retries) {
+        ESP_LOGW("MAIN", "Failed to connect to Wi-Fi, retrying (%d/%d)...", retry_count + 1, max_retries);
+        retry_count++;
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+    if (retry_count >= max_retries) {
+        ESP_LOGE("MAIN", "Failed to connect to Wi-Fi after %d attempts", max_retries);
         return;
     }
     ESP_LOGI("MAIN", "Wi-Fi connected successfully");
@@ -89,36 +105,51 @@ void app_main(void) {
         ESP_LOGE("MAIN", "Failed to initialize TCP client");
         return;
     }
-    int my_ints[5] = {0}; // Biến toàn cục
-    
-    // Tạo task để xử lý TCP
-    xTaskCreate(tcp_task, "tcp_task", 4096, my_ints, 12, NULL);
 
-       TaskHandle_t led_handle;
-    if (xTaskCreate(led_task, "led_task", 2048, NULL, 5, &led_handle) != pdPASS) {
-        printf("Failed to create led_task\n");
+    const char *message = "Hello, TCP Server!";
+    if (tcp_client_send(message) != ESP_OK) {
+        ESP_LOGE("TCP_TASK", "Failed to send data");
+    }
+
+    char rx_buffer[128];
+    if (tcp_client_receive(rx_buffer, sizeof(rx_buffer)) != ESP_OK) {
+        ESP_LOGE("TCP_TASK", "Failed to receive string data");
+    } else {
+        ESP_LOGI("TCP_TASK", "Server response: %s", rx_buffer);
+    }
+    
+    // Tạo semaphore
+    angles_mutex = xSemaphoreCreateMutex();
+    if (angles_mutex == NULL) {
+        ESP_LOGE("MAIN", "Failed to create mutex");
         return;
     }
 
-    // // Tạo task cho 6 servo
-    // ServoParams servo_params[NUM_SERVOS] = {
-    //     {0, {0, 90, 180}, 1000},   // Servo 0: 0°, 90°, 180°, 1s
-    //     {1, {45, 90, 135}, 1500},  // Servo 1: 45°, 90°, 135°, 1.5s
-    //     {2, {0, 45, 90}, 800},     // Servo 2: 0°, 45°, 90°, 0.8s
-    //     {3, {90, 135, 180}, 1200}, // Servo 3: 90°, 135°, 180°, 1.2s
-    //     {4, {0, 90, 180}, 1000},   // Servo 4: 0°, 90°, 180°, 1s
-    //     {5, {45, 90, 135}, 1500},  // Servo 5: 45°, 90°, 135°, 1.5s
-    // };
-
-    // TaskHandle_t servo_handles[NUM_SERVOS];
-    // char task_name[16];
-    // for (int i = 0; i < NUM_SERVOS; i++) {
-    //     snprintf(task_name, sizeof(task_name), "servo_%d", i);
-    //     if (xTaskCreate(servo_task, task_name, 2048, &servo_params[i], 5, &servo_handles[i]) != pdPASS) {
-    //         printf("Failed to create %s\n", task_name);
-    //         return;
-    //     }
+    // // Tạo task LED
+    // TaskHandle_t led_handle;
+    // if (xTaskCreate(led_task, "led_task", 4096, NULL, 5, &led_handle) != pdPASS) {
+    //     ESP_LOGE("MAIN", "Failed to create led_task");
+    //     return;
     // }
+    TaskHandle_t tcp_handle;
+
+    // Tạo task TCP
+    if (xTaskCreate(tcp_task, "tcp_task", 4096, servo_angles, 5, &tcp_handle) != pdPASS) {
+        ESP_LOGE("MAIN", "Failed to create tcp_task");
+        return;
+    }
+
+    // Tạo task Servo
+    TaskHandle_t servo_handle;
+    if (xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle) != pdPASS) {
+        ESP_LOGE("MAIN", "Failed to create servo_task");
+        return;
+    }
 
 
+    xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle);
+    xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle);
+    xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle);
+    xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle);
+    xTaskCreate(servo_task, "control_servo", 4096, servo_angles, 5, &servo_handle);
 }
