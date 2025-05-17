@@ -12,8 +12,8 @@
 static int sock = -1; // Socket file descriptor
 
 // Gửi mảng float
-void send_array(int client_socket, float* arr, size_t size) {
-    ssize_t bytes_sent = send(client_socket, arr, size * sizeof(float), 0);
+void send_array(int client_socket, short* arr, size_t size) {
+    ssize_t bytes_sent = send(client_socket, arr, size * sizeof(short), 0);
     if (bytes_sent == -1) {
         fprintf(stderr, "[%s] Error sending array: %s\n", TCP_TAG, strerror(errno));
     } else {
@@ -22,8 +22,8 @@ void send_array(int client_socket, float* arr, size_t size) {
 }
 
 // Nhận mảng int
-bool recv_array(int client_socket, int* arr, size_t size) {
-    ssize_t bytes_received = recv(client_socket, arr, size * sizeof(int), 0);
+bool recv_array(int client_socket, short* arr, size_t size) {
+    ssize_t bytes_received = recv(client_socket, arr, size * sizeof(short), 0);
     if (bytes_received > 0) {
         printf("[%s] Array received successfully!\n", TCP_TAG);
         for (size_t i = 0; i < size; ++i) {
@@ -119,14 +119,14 @@ int tcp_client_send(const char *data) {
 }
 
 // Nhận mảng int
-int tcp_client_receive_ints(int *int_array) {
+short tcp_client_receive_ints(short *array) {
     if (sock < 0) {
         fprintf(stderr, "[%s] Socket not initialized\n", TCP_TAG);
         return -1;
     }
 
-    int total_bytes = NUM_INTS * sizeof(int); // 20 bytes cho 5 int
-    uint8_t *buffer = (uint8_t *)int_array;
+    int total_bytes = NUM_INTS * sizeof(short); // 20 bytes cho 5 int
+    uint8_t *buffer = (uint8_t *)array;
     int received = 0;
 
     while (received < total_bytes) {
@@ -143,11 +143,43 @@ int tcp_client_receive_ints(int *int_array) {
 
     printf("[%s] Received %d bytes (%d ints)\n", TCP_TAG, received, NUM_INTS);
     for (int i = 0; i < NUM_INTS; i++) {
-        printf("[%s] Value int[%d] = %d\n", TCP_TAG, i, int_array[i]);
+        printf("[%s] Value int[%d] = %d\n", TCP_TAG, i, array[i]);
     }
 
     return 0;
 }
+
+// Nhận mảng int
+short tcp_client_send_ints(short *array) {
+    if (sock < 0) {
+        fprintf(stderr, "[%s] Socket not initialized\n", TCP_TAG);
+        return -1;
+    }
+
+    int total_bytes = NUM_INTS * sizeof(short); // 20 bytes cho 5 int
+    uint8_t *buffer = (uint8_t *)array;
+    int received = 0;
+
+    while (received < total_bytes) {
+        int len = send(sock, buffer + received, total_bytes - received, 0);
+        if (len < 0) {
+            fprintf(stderr, "[%s] Error receiving data: %s\n", TCP_TAG, strerror(errno));
+            return -1;
+        } else if (len == 0) {
+            printf("[%s] Server closed connection\n", TCP_TAG);
+            return -1;
+        }
+        received += len;
+    }
+
+    printf("[%s] Received %d bytes (%d ints)\n", TCP_TAG, received, NUM_INTS);
+    for (int i = 0; i < NUM_INTS; i++) {
+        printf("[%s] Value int[%d] = %d\n", TCP_TAG, i, array[i]);
+    }
+
+    return 0;
+}
+
 
 // Nhận dữ liệu từ server
 int tcp_client_receive(char *buffer, size_t buffer_size) {
