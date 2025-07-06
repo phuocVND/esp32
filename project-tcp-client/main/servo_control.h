@@ -14,6 +14,6 @@ typedef struct {
 
 // Khai báo các hàm
 void init_servos(void);
-void servo_set_angle(uint8_t servo_id, uint32_t angle);
+void servo_set_angle(uint8_t servo_id, uint8_t angle);
 
 #endif // SERVO_CONTROL_H

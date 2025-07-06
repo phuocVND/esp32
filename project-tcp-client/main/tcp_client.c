@@ -41,7 +41,7 @@ bool recv_array(int client_socket, short* arr, size_t size) {
 
 // Gửi struct
 void send_struct(int client_socket, const MyData* data) {
-    ssize_t bytes_sent = send(client_socket, data, sizeof(MyData), 0);
+    ssize_t bytes_sent = send(sock, data, sizeof(MyData), 0);
     if (bytes_sent == -1) {
         fprintf(stderr, "[%s] Error sending struct: %s\n", TCP_TAG, strerror(errno));
     } else {
@@ -50,13 +50,9 @@ void send_struct(int client_socket, const MyData* data) {
 }
 
 // Nhận struct
-bool recv_struct(int client_socket, MyData* data) {
-    ssize_t bytes_received = recv(client_socket, data, sizeof(MyData), 0);
+bool recv_struct(ParameterAngle* data) {
+    ssize_t bytes_received = recv(sock, data, sizeof(ParameterAngle), 0);
     if (bytes_received > 0) {
-        printf("[%s] Struct received successfully!\n", TCP_TAG);
-        printf("[%s] ID: %d\n", TCP_TAG, data->id);
-        printf("[%s] Value: %f\n", TCP_TAG, data->value);
-        printf("[%s] Name: %s\n", TCP_TAG, data->name);
         return true;
     } else if (bytes_received == 0) {
         printf("[%s] Client disconnected!\n", TCP_TAG);

@@ -3,7 +3,7 @@
 #include "servo_control.h"
 
 // Định nghĩa chân GPIO cho 6 servo (tránh xung đột với LED)
-static const int servo_pins[NUM_SERVOS] = {16, 17, 18, 19, 5, 4};
+static const int servo_pins[NUM_SERVOS] = {4, 16, 17, 5, 18, 19};
 
 // Định nghĩa kênh PWM cho 6 servo
 static const ledc_channel_t servo_channels[NUM_SERVOS] = {
@@ -46,7 +46,7 @@ void init_servos(void) {
 }
 
 // Hàm điều khiển góc servo (0-180 độ)
-void servo_set_angle(uint8_t servo_id, uint32_t angle) {
+void servo_set_angle(uint8_t servo_id, uint8_t angle) {
     if (servo_id >= NUM_SERVOS) {
         printf("Invalid servo ID: %d\n", servo_id);
         return;
@@ -57,5 +57,5 @@ void servo_set_angle(uint8_t servo_id, uint32_t angle) {
     uint32_t duty = (angle * (2500 - 500) / 180 + 500) * 1023 / 20000;
     ledc_set_duty(LEDC_HIGH_SPEED_MODE, servo_channels[servo_id], duty);
     ledc_update_duty(LEDC_HIGH_SPEED_MODE, servo_channels[servo_id]);
-    printf("Servo %d set to %ld degrees\n", servo_id, angle);
+    // printf("Servo %d set to %d degrees\n", servo_id, angle);
 }
