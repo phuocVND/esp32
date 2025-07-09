@@ -43,6 +43,17 @@ esp_err_t wifi_connect_init(void) {
     // Tạo netif cho Wi-Fi STA
     esp_netif_create_default_wifi_sta();
 
+    // Lấy handle của netif
+    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    // Tắt DHCP client để dùng IP tĩnh
+    ESP_ERROR_CHECK(esp_netif_dhcpc_stop(netif));
+    // Thiết lập thông tin IP tĩnh
+    esp_netif_ip_info_t ip_info;
+    ip_info.ip.addr = ipaddr_addr("192.168.1.68");  // IP tĩnh
+    ip_info.gw.addr = ipaddr_addr("192.168.1.1");    // Gateway (router)
+    ip_info.netmask.addr = ipaddr_addr("255.255.255.0");  // Subnet mask
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(netif, &ip_info));
+
     // Khởi tạo Wi-Fi
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
